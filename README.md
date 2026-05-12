@@ -120,10 +120,3 @@ python main.py --mode evaluate --config config/evaluate_radiollm.yaml
 - CUDA 11.0+（推荐 GPU 训练）
 - 各章节详细依赖见对应目录下的 `requirements.txt`
 
-## 引用
-
-如果您使用了本项目的代码，请考虑引用相关论文（待补充）。
-
-## 许可证
-
-本项目仅供学术研究使用。
