@@ -1,0 +1,114 @@
+# ============================================================
+# RadioLLM 预训练配置文件
+# 使用方法: python main.py --cfg config/pretrain_radiollm.yaml
+# ============================================================
+
+# ---------- 任务与模型 ----------
+task_name: soft_hard_prompt3          # soft_hard_prompt3 = 预训练模式
+model_name: RadioLLM                  # RadioLLM 或 RadioLLM_RAG
+autocast: False
+
+# ---------- 训练超参数 ----------
+lr: 1e-5
+epochs: 100
+batchsize: 32
+acc_it: 32
+clip_grad: 100
+patience: 200
+wait: 20
+declay: 0.5
+yuzhi: 10
+pref: 20
+torch_seed: '42'
+np_seed: 'None'
+
+# ---------- 损失权重 ----------
+lamba: 1          # sgn clean 损失权重
+alpha: 1          # sgn mask 损失权重
+beta: 0.0         # filter 损失权重
+delta: 0.0        # freq 损失权重
+balence: 1000
+
+# ---------- 模型结构 ----------
+enc_in: 2
+dec_in: 2
+c_out: 2
+d_model: 128
+n_heads: 8
+e_layers: 2
+d_layers: 1
+d_ff: 32
+d_ff2: 1024
+moving_avg: 25
+factor: 5
+dropout: 0.1
+embed: timeF
+activation: gelu
+output_attention: False
+patch_len: 16
+stride: 8
+seq_len: 128
+pred_len: 128
+prompt_domain: True
+right_prob: 0.0
+K: 7
+is_LORA: True
+decode_mask: True
+mix: True
+attn: prob
+ReprogrammingLayer: 4
+
+# ---------- LLM 配置 ----------
+llm_model: GPT2
+llm_path: ./pretrain_model/gpt2/
+llm_dim: 768
+llm_layers: 6
+
+# ---------- 数据增强与预处理 ----------
+RGB_is: True
+adsbis: False
+resample: False
+chazhi: False
+newdata: False
+cnum: 2
+samplenum: 1
+trans_choose: fft
+decoder_is: False
+num_class: 11
+
+# ---------- 数据集配置 ----------
+# 预训练数据集列表（RadioLLM 可用 RML2016, RML2018, ADSB, WIFI）
+# RadioLLM_RAG 只能用 RML2016
+Names:
+  - RML2016
+  # - RML2018
+  # - ADSB
+  # - WIFI
+
+# 数据路径（与 Names 一一对应）
+data_paths:
+  - ./data/pretrain_data/RML2016_10a+b_gao17SNRdata.mat
+  # - ./data/pretrain_data/RML2018.10a_train_data.npy
+  # - ./data/pretrain_data/ADSB.pkl
+  # - ./data/pretrain_data/WIFI_2ft.pkl
+
+# 数据划分比例（与 Names 一一对应）
+split_ratios:
+  - 1.00
+  # - 1.00
+  # - 1.00
+  # - 0.05
+
+# 验证集划分比例
+val_split: 0.7
+
+# 数据集 YAML 配置路径
+dataset_config: ./config/datasets.yaml
+
+# ---------- 模型加载 ----------
+# 预训练权重路径（用于继续训练或加载 checkpoint）
+model_path: ./checkpoint_pretrtain/RadioLLM/best_network.pth
+
+# ---------- 保存路径 ----------
+checkpoint_dir: ./checkpoint_pretrtain/RadioLLM/
+runs_dir: ./runs/pretrain/RadioLLM/

@@ -1,0 +1,33 @@
+# FLAN方法在RML2016.10b数据集上的配置文件
+# 使用方式: python main.py --cfg config/replay/flan/flan_rmlb.yaml
+
+# ========== 模型选择 ==========
+model: FLAN
+
+# ========== 训练超参数 ==========
+batchsize: 64
+lr: 0.0005
+epochs: 200
+classesnum: 10
+netdepth: 64
+cutmixsize: 4
+patience: 200
+wait: 5
+declay: 0.5
+yuzhi: 10
+numworks: 4
+pref: 20
+
+# ========== 数据相关参数 ==========
+trans_choose: pwvd
+dataset: RMLB
+withoutis: 'no'
+adsbis: false
+resample: false
+chazhi: false
+cnum: 2
+samplenum: 10
+
+# ========== 路径参数 ==========
+data_dir: ./data
+checkpoint_dir: ./checkpoint_FLAN

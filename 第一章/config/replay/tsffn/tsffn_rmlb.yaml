@@ -1,0 +1,34 @@
+# TSFFN方法在RML2016.10b数据集上的配置文件
+# 使用方式: python main.py --cfg config/replay/tsffn/tsffn_rmlb.yaml
+#            python evaluate.py --cfg config/replay/tsffn/tsffn_rmlb.yaml
+
+# ========== 模型选择 ==========
+model: TSFFN
+
+# ========== 训练超参数 ==========
+batchsize: 64           # ADSB: 32, 其他: 64
+lr: 0.0005              # 初始学习率
+epochs: 200             # 最大训练轮数
+classesnum: 10          # RMLA: 11, RMLB: 10, RMLC: 11, ADSB: 198
+netdepth: 64            # 网络特征维度
+cutmixsize: 4           # CutMix大小
+patience: 200           # 早停耐心值
+wait: 5                 # 学习率调整等待轮数
+declay: 0.5             # 学习率衰减因子
+yuzhi: 10               # 学习率衰减阈值
+numworks: 4             # 数据加载工作进程数
+pref: 20                # 数据预取因子
+
+# ========== 数据相关参数 ==========
+trans_choose: pwvd      # 时频变换方式
+dataset: RMLB           # 数据集名称
+withoutis: 'no'
+adsbis: false           # ADSB数据集设为true，其他设为false
+resample: false         # ADSB数据集设为true，其他设为false
+chazhi: false           # 是否进行插值
+cnum: 2                 # 插值倍数
+samplenum: 10           # 重采样点数
+
+# ========== 路径参数 ==========
+data_dir: ./data
+checkpoint_dir: ./checkpoint_TSFFN

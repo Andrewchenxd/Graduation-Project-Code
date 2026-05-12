@@ -1,0 +1,94 @@
+# ====================
+# 模型权重文件 (Model Checkpoints)
+# ====================
+*.pth
+*.pt
+*.ckpt
+*.bin
+
+# ====================
+# 数据文件 (Dataset Files)
+# ====================
+*.npy
+*.mat
+*.pkl
+*.h5
+*.hdf5
+*.npz
+
+# ====================
+# 预训练模型 (Pretrained Models)
+# ====================
+**/pretrain_model/gpt2/pytorch_model.bin
+**/pretrain_model/gpt2/*.bin
+
+# ====================
+# 运行日志和结果 (Logs & Results)
+# ====================
+**/runs/
+**/result/
+*.csv
+*.log
+
+# ====================
+# Python 缓存
+# ====================
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.egg-info/
+dist/
+build/
+
+# ====================
+# IDE 和编辑器
+# ====================
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+
+# ====================
+# 环境配置
+# ====================
+.env
+venv/
+.venv/
+env/
+
+# ====================
+# 第一章：checkpoint 目录（命名不规范）
+# ====================
+第一章/checkpoint_CNN2/
+第一章/checkpoint_DAE/
+第一章/checkpoint_FLAN/
+第一章/checkpoint_LSTM/
+第一章/checkpoint_TSFFN/
+第一章/checkpoint_*/
+第一章/data/
+
+# ====================
+# 第二章：checkpoint 和数据
+# ====================
+第二章/checkpoint_fintune/
+第二章/checkpoint_pretrain/
+第二章/data/
+
+# ====================
+# 第三章：checkpoint、数据、预训练模型、结果
+# ====================
+第三章/checkpoint_fintune/
+第三章/checkpoint_pretrtain/
+第三章/data/
+第三章/pretrain_model/gpt2/pytorch_model.bin
+第三章/result/
+第三章/runs/
+
+# ====================
+# code_envs（Python 环境）
+# ====================
+code_envs/

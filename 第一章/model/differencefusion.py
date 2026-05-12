@@ -1,0 +1,648 @@
+import torch
+import numpy as np
+from torch import nn
+import torch.nn.functional as F
+from tool.signeltoimage import *
+import torch.fft
+import math
+torch.manual_seed(114514)
+torch.cuda.manual_seed(114514)
+d_model = 64
+d_ff = 1024
+d_q = d_ff
+d_k = d_ff
+d_v = d_ff
+n_heads = 4
+
+class ScaledDotProductAttention(nn.Module):
+    def __init__(self):
+        super(ScaledDotProductAttention, self).__init__()
+
+    def forward(self, Q, K, V):
+        scores = torch.matmul(Q, K.transpose(-1, -2)) / np.sqrt(d_k)
+        attn = nn.Softmax(dim=-1)(scores)
+        context = torch.matmul(attn, V)
+        return context, attn
+
+
+class MultiHeadAttention(nn.Module):
+    def __init__(self):
+        super(MultiHeadAttention, self).__init__()
+        self.W_Q = nn.Linear(d_model, d_q * n_heads, bias=False)
+        self.W_K = nn.Linear(d_model, d_k * n_heads, bias=False)
+        self.W_V = nn.Linear(d_model, d_v * n_heads, bias=False)
+        self.fc = nn.Linear(n_heads * d_v, d_model, bias=False)
+
+    def forward(self, input_Q, input_K, input_V):
+        residual, batch_size = input_Q, input_Q.size(0)
+        Q = self.W_Q(input_Q).view(batch_size, -1, n_heads, d_k).transpose(1, 2)
+        K = self.W_K(input_K).view(batch_size, -1, n_heads, d_k).transpose(1, 2)
+        V = self.W_V(input_V).view(batch_size, -1, n_heads, d_v).transpose(1, 2)
+        context, attn = ScaledDotProductAttention()(Q, K, V)
+        context = context.transpose(1, 2).reshape(batch_size, -1, n_heads * d_v)
+
+        return  context,attn
+
+class SKConv(nn.Module):
+    def __init__(self, channels, branches=2, groups=32, reduce=16, stride=1, len=32):
+        super(SKConv, self).__init__()
+        len = max(channels // reduce, len)
+        self.convs = nn.ModuleList([])
+        for i in range(branches):
+            self.convs.append(nn.Sequential(
+                nn.Conv2d(channels, channels, kernel_size=3, stride=stride, padding=1 + i, dilation=1 + i,
+                          groups=groups, bias=False),
+                nn.BatchNorm2d(channels),
+                nn.ReLU(inplace=True)
+            ))
+        self.gap = nn.AdaptiveAvgPool2d((1, 1))
+        self.fc = nn.Sequential(
+            nn.Conv2d(channels, len, kernel_size=1, stride=1, bias=False),
+            nn.BatchNorm2d(len),
+            nn.ReLU(inplace=True)
+        )
+        self.fcs = nn.ModuleList([])
+        for i in range(branches):
+            self.fcs.append(
+                nn.Conv2d(len, channels, kernel_size=1, stride=1)
+            )
+        self.softmax = nn.Softmax(dim=1)
+
+    def forward(self, x):
+        x = [conv(x) for conv in self.convs]
+        x = torch.stack(x, dim=1)
+        attention = torch.sum(x, dim=1)
+        attention = self.gap(attention)
+        attention = self.fc(attention)
+        attention = [fc(attention) for fc in self.fcs]
+        attention = torch.stack(attention, dim=1)
+        attention = self.softmax(attention)
+        x = torch.sum(x * attention, dim=1)
+        return x
+
+class SKUnit(nn.Module):
+    def __init__(self, in_channels, mid_channels, out_channels, branches=2, group=32, reduce=16, stride=1, len=32):
+        super(SKUnit, self).__init__()
+
+        self.conv1 = nn.Sequential(
+            nn.Conv2d(in_channels, mid_channels, kernel_size=1, stride=1, bias=False),
+            nn.BatchNorm2d(mid_channels),
+            nn.ReLU(inplace=True)
+        )
+
+        self.conv2 = SKConv(mid_channels, branches=branches, groups=group, reduce=reduce, stride=stride, len=len)
+
+        self.conv3 = nn.Sequential(
+            nn.Conv2d(mid_channels, out_channels, kernel_size=1, stride=1, bias=False),
+            nn.BatchNorm2d(out_channels)
+        )
+
+        if in_channels == out_channels:  # when dim not change, input_features could be added directly to out
+            self.shortcut = nn.Sequential()
+        else:  # when dim not change, input_features should also change dim to be added to out
+            self.shortcut = nn.Sequential(
+                nn.Conv2d(in_channels, out_channels, kernel_size=1, stride=stride, bias=False),
+                nn.BatchNorm2d(out_channels)
+            )
+
+        self.relu = nn.ReLU(inplace=True)
+
+    def forward(self, x):
+        residual = x
+        residual = self.shortcut(residual)
+
+        x = self.conv1(x)
+        x = self.conv2(x)
+        x = self.conv3(x)
+        x += residual
+        return self.relu(x)
+
+class sknetdrop_linear(nn.Module):
+    def __init__(self, num_classes, hidden_size,cutmixsize, num_block_lists=[3, 4, 6, 3],drop=0.2,in_features=2368):
+        super(sknetdrop_linear, self).__init__()
+        self.cutmixsize=cutmixsize
+        self.basic_conv = nn.Sequential(
+            nn.Conv2d(1, 64, kernel_size=7, stride=2, padding=3, bias=False),
+            nn.BatchNorm2d(64),
+            nn.ReLU(inplace=True),
+            nn.MaxPool2d(kernel_size=3, stride=2, padding=1)
+        )
+
+        self.sgncovt = nn.Sequential(
+            nn.Conv1d(2, hidden_size, kernel_size=7, stride=2, padding=3),
+            nn.BatchNorm1d(hidden_size),
+            nn.ReLU(inplace=True),
+            nn.Conv1d(hidden_size, 2 * hidden_size, kernel_size=7, stride=2, padding=3),
+            nn.BatchNorm1d(2 * hidden_size),
+            nn.ReLU(inplace=True),
+            nn.MaxPool1d(kernel_size=3, stride=2, padding=1)
+        )
+        self.encoder_layer_t = nn.TransformerEncoderLayer(d_model=2 * hidden_size, nhead=4)
+        self.transformer_encoder_t = nn.TransformerEncoder(self.encoder_layer_t, num_layers=3)
+        self.sgncovs  = nn.Sequential(
+            nn.Conv1d(2, hidden_size, kernel_size=7, stride=2, padding=3),
+            nn.BatchNorm1d(hidden_size),
+            nn.ReLU(inplace=True),
+            nn.Conv1d(hidden_size, 2*hidden_size, kernel_size=7, stride=2, padding=3),
+            nn.BatchNorm1d(2*hidden_size),
+            nn.ReLU(inplace=True),
+            nn.MaxPool1d(kernel_size=3, stride=2, padding=1)
+        )
+        self.encoder_layer_s = nn.TransformerEncoderLayer(d_model=2 * hidden_size, nhead=4)
+        self.transformer_encoder_s = nn.TransformerEncoder(self.encoder_layer_s, num_layers=3)
+        self.cutcovt=self.cutmix_make_layer(1,hidden_size,self.cutmixsize)
+        self.cutcovs = self.cutmix_make_layer(1, hidden_size, self.cutmixsize)
+        self.stage_1 = self._make_layer(64, 128, 256, nums_block=num_block_lists[0], stride=1)
+        self.stage_2 = self._make_layer(256, 256, 512, nums_block=num_block_lists[1], stride=2)
+        self.stage_3 = self._make_layer(512, 512, 1024, nums_block=num_block_lists[2], stride=2)
+        self.stage_4 = self._make_layer(1024, 1024, 2048, nums_block=num_block_lists[3], stride=2)
+        self.sgncov3 = nn.Sequential(
+            nn.Conv1d(1, hidden_size, kernel_size=3, stride=1, padding=1),
+            nn.BatchNorm1d(hidden_size),
+            nn.ReLU(inplace=True),
+            nn.MaxPool1d(kernel_size=3, stride=2, padding=1)
+        )
+
+
+        self.drop1 = nn.Dropout(drop)
+        self.drop2 = nn.Dropout(drop)
+        self.drop3 = nn.Dropout(drop)
+        self.op_emb_t = nn.Linear(2 * hidden_size, 1)
+        self.op_emb_s = nn.Linear(2 * hidden_size, 1)
+        self.gap = nn.AdaptiveAvgPool2d(1)
+        self.gap1 = nn.AdaptiveAvgPool2d(1)
+        self.gap2 = nn.AdaptiveAvgPool1d(1)
+        self.gap3 = nn.AdaptiveAvgPool1d(1)
+
+        self.classifier = nn.Linear(1024, num_classes)
+        self.fc = nn.Linear(in_features=in_features, out_features=1024)
+        self.drop=nn.Dropout(drop)
+        self.softMax=nn.Softmax(dim=0)
+        for m in self.modules():
+            if isinstance(m, (nn.Conv2d, nn.Linear)):
+                nn.init.kaiming_normal_(m.weight, mode='fan_in')
+                if m.bias is not None:
+                    nn.init.zeros_(m.bias)
+            elif isinstance(m, nn.BatchNorm2d):
+                nn.init.ones_(m.weight)
+                nn.init.zeros_(m.bias)
+
+
+    def _make_layer(self, in_channels, mid_channels, out_channels, nums_block, stride=1):
+        layers = [SKUnit(in_channels, mid_channels, out_channels, stride=stride)]
+        for _ in range(1, nums_block):
+            layers.append(SKUnit(out_channels, mid_channels, out_channels))
+        return nn.Sequential(*layers)
+    def cutmix_make_layer(self,in_channels, hidden_size,cutsize):
+        layers = [nn.Conv2d(in_channels, int(hidden_size/2), kernel_size=3, stride=2, padding=1)]
+        for i in range(1, cutsize):
+            layers.append(nn.Conv2d(int(hidden_size/2)*i,int(hidden_size/2)*(i+1), kernel_size=3, stride=2, padding=1))
+        return nn.ModuleList(layers)
+
+    # 默认基是16
+    def cutmix(self,fbt, fbs, cutsize, id):
+        len = fbt.shape[3]
+        wid = fbt.shape[2]
+        base = 16
+        temp_mask = np.zeros([base, len, wid])
+        base_mask = np.zeros([base, len, wid])
+        mask = np.zeros([len, wid])
+        num = math.floor(base / cutsize)
+        xx = math.ceil(len / cutsize)
+        k = 0
+        for i in range(3):
+            i = i + 1
+            for j in range(i):
+                temp_mask[k, xx * i:xx * (i + 1), xx * j:xx * (j + 1)] = 1
+                base_mask[k, xx * i:xx * (i + 1), xx * j:xx * (j + 1)] = np.tril(
+                    temp_mask[k, xx * i:xx * (i + 1), xx * j:xx * (j + 1)])
+                k = k + 1
+                temp_mask[k, xx * i:xx * (i + 1), xx * j:xx * (j + 1)] = 1
+                base_mask[k, xx * i:xx * (i + 1), xx * j:xx * (j + 1)] = np.triu(
+                    temp_mask[k, xx * i:xx * (i + 1), xx * j:xx * (j + 1)], 1)
+                k = k + 1
+        for i in range(4):
+            temp_mask[k, xx * i:xx * (i + 1), xx * i:xx * (i + 1)] = 1
+            base_mask[k, xx * i:xx * (i + 1), xx * i:xx * (i + 1)] = np.tril(
+                temp_mask[k, xx * i:xx * (i + 1), xx * i:xx * (i + 1)])
+            k = k + 1
+        if id != (cutsize - 1):
+            for i in range(num):
+                mask = mask + base_mask[i + id * num, :, :]
+        else:
+            for i in range(base - num * (cutsize - 1)):
+                mask = mask + base_mask[i + id * num, :, :]
+        mask = np.expand_dims(mask, axis=0)
+        mask = np.expand_dims(mask, axis=0)
+
+        mask = torch.tensor(mask, dtype=torch.float32,device=fbt.device)
+        tem_t = fbt * mask
+        tem_s = fbs * mask
+        fbt = fbt * (1 - mask) + tem_t
+        fbs = fbs * (1 - mask) + tem_s
+        return fbt, fbs
+
+    def forward(self, x, y,z):
+        x = self.basic_conv(x)
+        x = self.stage_1(x)
+        x = self.stage_2(x)
+        x = self.stage_3(x)
+        x = self.stage_4(x)
+
+        x = self.gap(x)
+        f = abs(torch.fft.fft(y))
+        f = self.sgncovs(f)
+        f = f.transpose(1, 2)
+        f = self.transformer_encoder_s(f)
+        f=self.op_emb_s(f)
+        f=self.drop1(f)
+        fs_T = f.permute(0, 2, 1)
+        fbs=f*fs_T
+        fbs = fbs.unsqueeze(1)
+
+        y=self.sgncovt(y)
+        y = y.transpose(1, 2)
+        y = self.transformer_encoder_t(y)
+        y = self.op_emb_t(y)
+        y=self.drop2(y)
+        ft_T = y.permute(0, 2, 1)
+        fbt = y * ft_T
+        fbt = fbt.unsqueeze(1)
+        for i in range(self.cutmixsize):
+            fbt, fbs = self.cutmix(fbt, fbs, self.cutmixsize,i)
+            fbt = self.cutcovt[i](fbt)
+            fbs = self.cutcovs[i](fbs)
+        y=torch.cat((fbt,fbs), 1)
+        y = self.gap1(y)
+        z = self.sgncov3(z)
+        z=self.gap2(z)
+        x = x.view(x.size(0), -1)
+        y = y.view(y.size(0), -1)
+        z = z.view(z.size(0), -1)
+        x = torch.cat((x,y,z), 1)
+        x=self.fc(x)
+        x=self.drop(x)
+        x = self.classifier(x)
+        return x
+
+class sknetdrop_hkdd(nn.Module):
+    def __init__(self, num_classes, hidden_size,cutmixsize, num_block_lists=[3, 4, 6, 3],drop=0.2,in_features=2368):
+        super(sknetdrop_hkdd, self).__init__()
+        self.cutmixsize=cutmixsize
+        self.basic_conv = nn.Sequential(
+            nn.Conv2d(1, 64, kernel_size=7, stride=2, padding=3, bias=False),
+            nn.BatchNorm2d(64),
+            nn.ReLU(inplace=True),
+            nn.MaxPool2d(kernel_size=3, stride=2, padding=1)
+        )
+
+        self.sgncovt = nn.Sequential(
+            nn.Conv1d(2, hidden_size, kernel_size=7, stride=2, padding=3),
+            nn.BatchNorm1d(hidden_size),
+            nn.ReLU(inplace=True),
+            nn.Conv1d(hidden_size, 2 * hidden_size, kernel_size=7, stride=2, padding=3),
+            nn.BatchNorm1d(2 * hidden_size),
+            nn.ReLU(inplace=True),
+            nn.MaxPool1d(kernel_size=3, stride=2, padding=1)
+        )
+        self.encoder_layer_t = nn.TransformerEncoderLayer(d_model=2 * hidden_size, nhead=4)
+        self.transformer_encoder_t = nn.TransformerEncoder(self.encoder_layer_t, num_layers=3)
+        self.sgncovs  = nn.Sequential(
+            nn.Conv1d(2, hidden_size, kernel_size=7, stride=2, padding=3),
+            nn.BatchNorm1d(hidden_size),
+            nn.ReLU(inplace=True),
+            nn.Conv1d(hidden_size, 2*hidden_size, kernel_size=7, stride=2, padding=3),
+            nn.BatchNorm1d(2*hidden_size),
+            nn.ReLU(inplace=True),
+            nn.MaxPool1d(kernel_size=3, stride=2, padding=1)
+        )
+        self.encoder_layer_s = nn.TransformerEncoderLayer(d_model=2 * hidden_size, nhead=4)
+        self.transformer_encoder_s = nn.TransformerEncoder(self.encoder_layer_s, num_layers=3)
+        self.cutcovt=self.cutmix_make_layer(1,hidden_size,self.cutmixsize)
+        self.cutcovs = self.cutmix_make_layer(1, hidden_size, self.cutmixsize)
+        self.stage_1 = self._make_layer(64, 128, 256, nums_block=num_block_lists[0], stride=1)
+        self.stage_2 = self._make_layer(256, 256, 512, nums_block=num_block_lists[1], stride=2)
+        self.stage_3 = self._make_layer(512, 512, 1024, nums_block=num_block_lists[2], stride=2)
+        self.stage_4 = self._make_layer(1024, 1024, 2048, nums_block=num_block_lists[3], stride=2)
+        self.sgncov3 = nn.Sequential(
+            nn.Conv1d(1, hidden_size, kernel_size=3, stride=1, padding=1),
+            nn.BatchNorm1d(hidden_size),
+            nn.ReLU(inplace=True),
+            nn.MaxPool1d(kernel_size=3, stride=2, padding=1)
+        )
+
+
+        self.drop1 = nn.Dropout(drop)
+        self.drop2 = nn.Dropout(drop)
+        self.drop3 = nn.Dropout(drop)
+        self.op_emb_t = nn.Linear(2 * hidden_size, 1)
+        self.op_emb_s = nn.Linear(2 * hidden_size, 1)
+        self.gap = nn.AdaptiveAvgPool2d(1)
+        self.gap1 = nn.AdaptiveAvgPool2d(1)
+        self.gap2 = nn.AdaptiveAvgPool1d(1)
+        self.gap3 = nn.AdaptiveAvgPool1d(1)
+        self.attention = nn.Sequential(nn.Linear(in_features, in_features),
+                                  nn.Tanh(),
+                                  nn.Linear(in_features, 1024),
+                                  nn.Tanh(),
+                                  nn.Linear(1024, in_features),
+                                  nn.Sigmoid()
+                                  )
+        self.classifier = nn.Linear(1024, num_classes)
+        self.fc = nn.Linear(in_features=in_features, out_features=1024)
+        self.drop=nn.Dropout(drop)
+        self.softMax=nn.Softmax(dim=0)
+        for m in self.modules():
+            if isinstance(m, (nn.Conv2d, nn.Linear)):
+                nn.init.kaiming_normal_(m.weight, mode='fan_in')
+                if m.bias is not None:
+                    nn.init.zeros_(m.bias)
+            elif isinstance(m, nn.BatchNorm2d):
+                nn.init.ones_(m.weight)
+                nn.init.zeros_(m.bias)
+
+
+    def _make_layer(self, in_channels, mid_channels, out_channels, nums_block, stride=1):
+        layers = [SKUnit(in_channels, mid_channels, out_channels, stride=stride)]
+        for _ in range(1, nums_block):
+            layers.append(SKUnit(out_channels, mid_channels, out_channels))
+        return nn.Sequential(*layers)
+    def cutmix_make_layer(self,in_channels, hidden_size,cutsize):
+        layers = [nn.Conv2d(in_channels, int(hidden_size/2), kernel_size=3, stride=2, padding=1)]
+        for i in range(1, cutsize):
+            layers.append(nn.Conv2d(int(hidden_size/2)*i,int(hidden_size/2)*(i+1), kernel_size=3, stride=2, padding=1))
+        return nn.ModuleList(layers)
+
+    # 默认基是16
+    def cutmix(self,fbt, fbs, cutsize, id):
+        len = fbt.shape[3]
+        wid = fbt.shape[2]
+        base = 16
+        temp_mask = np.zeros([base, len, wid])
+        base_mask = np.zeros([base, len, wid])
+        mask = np.zeros([len, wid])
+        num = math.floor(base / cutsize)
+        xx = math.ceil(len / cutsize)
+        k = 0
+        for i in range(3):
+            i = i + 1
+            for j in range(i):
+                temp_mask[k, xx * i:xx * (i + 1), xx * j:xx * (j + 1)] = 1
+                base_mask[k, xx * i:xx * (i + 1), xx * j:xx * (j + 1)] = np.tril(
+                    temp_mask[k, xx * i:xx * (i + 1), xx * j:xx * (j + 1)])
+                k = k + 1
+                temp_mask[k, xx * i:xx * (i + 1), xx * j:xx * (j + 1)] = 1
+                base_mask[k, xx * i:xx * (i + 1), xx * j:xx * (j + 1)] = np.triu(
+                    temp_mask[k, xx * i:xx * (i + 1), xx * j:xx * (j + 1)], 1)
+                k = k + 1
+        for i in range(4):
+            temp_mask[k, xx * i:xx * (i + 1), xx * i:xx * (i + 1)] = 1
+            base_mask[k, xx * i:xx * (i + 1), xx * i:xx * (i + 1)] = np.tril(
+                temp_mask[k, xx * i:xx * (i + 1), xx * i:xx * (i + 1)])
+            k = k + 1
+        if id != (cutsize - 1):
+            for i in range(num):
+                mask = mask + base_mask[i + id * num, :, :]
+        else:
+            for i in range(base - num * (cutsize - 1)):
+                mask = mask + base_mask[i + id * num, :, :]
+        mask = np.expand_dims(mask, axis=0)
+        mask = np.expand_dims(mask, axis=0)
+
+        mask = torch.tensor(mask, dtype=torch.float32,device=fbt.device)
+        tem_t = fbt * mask
+        tem_s = fbs * mask
+        fbt = fbt * (1 - mask) + tem_t
+        fbs = fbs * (1 - mask) + tem_s
+        return fbt, fbs
+
+    def forward(self, x, y,z):
+        x = self.basic_conv(x)
+        x = self.stage_1(x)
+        x = self.stage_2(x)
+        x = self.stage_3(x)
+        x = self.stage_4(x)
+
+        x = self.gap(x)
+        f = abs(torch.fft.fft(y))
+        f = self.sgncovs(f)
+        f = f.transpose(1, 2)
+        f = self.transformer_encoder_s(f)
+        f=self.op_emb_s(f)
+        f=self.drop1(f)
+        fs_T = f.permute(0, 2, 1)
+        fbs=f*fs_T
+        fbs = fbs.unsqueeze(1)
+
+        y=self.sgncovt(y)
+        y = y.transpose(1, 2)
+        y = self.transformer_encoder_t(y)
+        y = self.op_emb_t(y)
+        y=self.drop2(y)
+        ft_T = y.permute(0, 2, 1)
+        fbt = y * ft_T
+        fbt = fbt.unsqueeze(1)
+        for i in range(self.cutmixsize):
+            fbt, fbs = self.cutmix(fbt, fbs, self.cutmixsize,i)
+            fbt = self.cutcovt[i](fbt)
+            fbs = self.cutcovs[i](fbs)
+        y=torch.cat((fbt,fbs), 1)
+        y = self.gap1(y)
+        z = self.sgncov3(z)
+        z=self.gap2(z)
+        x = x.view(x.size(0), -1)
+        y = y.view(y.size(0), -1)
+        z = z.view(z.size(0), -1)
+        x = torch.cat((x,y,z), 1)
+        out=self.attention(x)
+        x=out*x
+        x=self.fc(x)
+        x=self.drop(x)
+        x = self.classifier(x)
+        return x
+
+class sknetdrop_softmax(nn.Module):
+    def __init__(self, num_classes, hidden_size,cutmixsize, num_block_lists=[3, 4, 6, 3],drop=0.2,in_features=2368):
+        super(sknetdrop_softmax, self).__init__()
+        self.cutmixsize=cutmixsize
+        self.basic_conv = nn.Sequential(
+            nn.Conv2d(1, 64, kernel_size=7, stride=2, padding=3, bias=False),
+            nn.BatchNorm2d(64),
+            nn.ReLU(inplace=True),
+            nn.MaxPool2d(kernel_size=3, stride=2, padding=1)
+        )
+
+        self.sgncovt = nn.Sequential(
+            nn.Conv1d(2, hidden_size, kernel_size=7, stride=2, padding=3),
+            nn.BatchNorm1d(hidden_size),
+            nn.ReLU(inplace=True),
+            nn.Conv1d(hidden_size, 2 * hidden_size, kernel_size=7, stride=2, padding=3),
+            nn.BatchNorm1d(2 * hidden_size),
+            nn.ReLU(inplace=True),
+            nn.MaxPool1d(kernel_size=3, stride=2, padding=1)
+        )
+        self.encoder_layer_t = nn.TransformerEncoderLayer(d_model=2 * hidden_size, nhead=4)
+        self.transformer_encoder_t = nn.TransformerEncoder(self.encoder_layer_t, num_layers=3)
+        self.sgncovs  = nn.Sequential(
+            nn.Conv1d(2, hidden_size, kernel_size=7, stride=2, padding=3),
+            nn.BatchNorm1d(hidden_size),
+            nn.ReLU(inplace=True),
+            nn.Conv1d(hidden_size, 2*hidden_size, kernel_size=7, stride=2, padding=3),
+            nn.BatchNorm1d(2*hidden_size),
+            nn.ReLU(inplace=True),
+            nn.MaxPool1d(kernel_size=3, stride=2, padding=1)
+        )
+        self.encoder_layer_s = nn.TransformerEncoderLayer(d_model=2 * hidden_size, nhead=4)
+        self.transformer_encoder_s = nn.TransformerEncoder(self.encoder_layer_s, num_layers=3)
+        self.cutcovt=self.cutmix_make_layer(1,hidden_size,self.cutmixsize)
+        self.cutcovs = self.cutmix_make_layer(1, hidden_size, self.cutmixsize)
+        self.stage_1 = self._make_layer(64, 128, 256, nums_block=num_block_lists[0], stride=1)
+        self.stage_2 = self._make_layer(256, 256, 512, nums_block=num_block_lists[1], stride=2)
+        self.stage_3 = self._make_layer(512, 512, 1024, nums_block=num_block_lists[2], stride=2)
+        self.stage_4 = self._make_layer(1024, 1024, 2048, nums_block=num_block_lists[3], stride=2)
+        self.sgncov3 = nn.Sequential(
+            nn.Conv1d(1, hidden_size, kernel_size=3, stride=1, padding=1),
+            nn.BatchNorm1d(hidden_size),
+            nn.ReLU(inplace=True),
+            nn.MaxPool1d(kernel_size=3, stride=2, padding=1)
+        )
+
+
+        self.drop1 = nn.Dropout(drop)
+        self.drop2 = nn.Dropout(drop)
+        self.drop3 = nn.Dropout(drop)
+        self.op_emb_t = nn.Linear(2 * hidden_size, 1)
+        self.op_emb_s = nn.Linear(2 * hidden_size, 1)
+        self.gap = nn.AdaptiveAvgPool2d(1)
+        self.gap1 = nn.AdaptiveAvgPool2d(1)
+        self.gap2 = nn.AdaptiveAvgPool1d(1)
+        self.gap3 = nn.AdaptiveAvgPool1d(1)
+        self.emb = nn.Linear(1, d_model)
+        self.attention=MultiHeadAttention()
+        self.classifier = nn.Linear(1024, num_classes)
+        self.fc = nn.Linear(in_features=in_features, out_features=1024)
+        self.drop=nn.Dropout(drop)
+        self.softMax=nn.Softmax(dim=0)
+        for m in self.modules():
+            if isinstance(m, (nn.Conv2d, nn.Linear)):
+                nn.init.kaiming_normal_(m.weight, mode='fan_in')
+                if m.bias is not None:
+                    nn.init.zeros_(m.bias)
+            elif isinstance(m, nn.BatchNorm2d):
+                nn.init.ones_(m.weight)
+                nn.init.zeros_(m.bias)
+
+
+    def _make_layer(self, in_channels, mid_channels, out_channels, nums_block, stride=1):
+        layers = [SKUnit(in_channels, mid_channels, out_channels, stride=stride)]
+        for _ in range(1, nums_block):
+            layers.append(SKUnit(out_channels, mid_channels, out_channels))
+        return nn.Sequential(*layers)
+    def cutmix_make_layer(self,in_channels, hidden_size,cutsize):
+        layers = [nn.Conv2d(in_channels, int(hidden_size/2), kernel_size=3, stride=2, padding=1)]
+        for i in range(1, cutsize):
+            layers.append(nn.Conv2d(int(hidden_size/2)*i,int(hidden_size/2)*(i+1), kernel_size=3, stride=2, padding=1))
+        return nn.ModuleList(layers)
+
+    # 默认基是16
+    def cutmix(self,fbt, fbs, cutsize, id):
+        len = fbt.shape[3]
+        wid = fbt.shape[2]
+        base = 16
+        temp_mask = np.zeros([base, len, wid])
+        base_mask = np.zeros([base, len, wid])
+        mask = np.zeros([len, wid])
+        num = math.floor(base / cutsize)
+        xx = math.ceil(len / cutsize)
+        k = 0
+        for i in range(3):
+            i = i + 1
+            for j in range(i):
+                temp_mask[k, xx * i:xx * (i + 1), xx * j:xx * (j + 1)] = 1
+                base_mask[k, xx * i:xx * (i + 1), xx * j:xx * (j + 1)] = np.tril(
+                    temp_mask[k, xx * i:xx * (i + 1), xx * j:xx * (j + 1)])
+                k = k + 1
+                temp_mask[k, xx * i:xx * (i + 1), xx * j:xx * (j + 1)] = 1
+                base_mask[k, xx * i:xx * (i + 1), xx * j:xx * (j + 1)] = np.triu(
+                    temp_mask[k, xx * i:xx * (i + 1), xx * j:xx * (j + 1)], 1)
+                k = k + 1
+        for i in range(4):
+            temp_mask[k, xx * i:xx * (i + 1), xx * i:xx * (i + 1)] = 1
+            base_mask[k, xx * i:xx * (i + 1), xx * i:xx * (i + 1)] = np.tril(
+                temp_mask[k, xx * i:xx * (i + 1), xx * i:xx * (i + 1)])
+            k = k + 1
+        if id != (cutsize - 1):
+            for i in range(num):
+                mask = mask + base_mask[i + id * num, :, :]
+        else:
+            for i in range(base - num * (cutsize - 1)):
+                mask = mask + base_mask[i + id * num, :, :]
+        mask = np.expand_dims(mask, axis=0)
+        mask = np.expand_dims(mask, axis=0)
+
+        mask = torch.tensor(mask, dtype=torch.float32,device=fbt.device)
+        tem_t = fbt * mask
+        tem_s = fbs * mask
+        fbt = fbt * (1 - mask) + tem_t
+        fbs = fbs * (1 - mask) + tem_s
+        return fbt, fbs
+
+    def forward(self, x, y,z):
+        x = self.basic_conv(x)
+        x = self.stage_1(x)
+        x = self.stage_2(x)
+        x = self.stage_3(x)
+        x = self.stage_4(x)
+
+        x = self.gap(x)
+        f = abs(torch.fft.fft(y))
+        f = self.sgncovs(f)
+        f = f.transpose(1, 2)
+        f = self.transformer_encoder_s(f)
+        f=self.op_emb_s(f)
+        f=self.drop1(f)
+        fs_T = f.permute(0, 2, 1)
+        fbs=f*fs_T
+        fbs = fbs.unsqueeze(1)
+
+        y=self.sgncovt(y)
+        y = y.transpose(1, 2)
+        y = self.transformer_encoder_t(y)
+        y = self.op_emb_t(y)
+        y=self.drop2(y)
+        ft_T = y.permute(0, 2, 1)
+        fbt = y * ft_T
+        fbt = fbt.unsqueeze(1)
+        for i in range(self.cutmixsize):
+            fbt, fbs = self.cutmix(fbt, fbs, self.cutmixsize,i)
+            fbt = self.cutcovt[i](fbt)
+            fbs = self.cutcovs[i](fbs)
+        y=torch.cat((fbt,fbs), 1)
+        y = self.gap1(y)
+        z = self.sgncov3(z)
+        z=self.gap2(z)
+        x = x.view(x.size(0), -1)
+        y = y.view(y.size(0), -1)
+        z = z.view(z.size(0), -1)
+        x = torch.cat((x,y,z), 1)
+        x = self.emb(x.view(-1, x.shape[1], 1))
+        contex, atten = self.attention(x, x, x)
+        x = self.gap3(contex)
+        x = x.view(x.size(0), -1)
+        x=self.fc(x)
+        x=self.drop(x)
+        x = self.classifier(x)
+        return x
+
+#
+# net1= sknetdrop_softmax(10,64,4,in_features=2368)
+# a=torch.randn((2,1,224,224))
+# b=torch.randn((2,2,1024))
+# c=torch.randn((2,1,17))
+#
+# net1(a,b,c)
+# def count_parameters_in_MB(model):
+#     return sum(p.numel() for p in model.parameters() if p.requires_grad) * 4 / (1024 ** 2)
+#
+# num_params = count_parameters_in_MB(net1)
+# print(f'Number of parameters: {num_params}')

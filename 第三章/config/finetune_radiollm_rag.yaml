@@ -1,0 +1,106 @@
+# ============================================================
+# RadioLLM_RAG 微调配置文件
+# 使用方法: python main.py --cfg config/finetune_radiollm_rag.yaml
+# ============================================================
+
+# ---------- 任务与模型 ----------
+task_name: classification
+model_name: RadioLLM_RAG              # RadioLLM 或 RadioLLM_RAG
+autocast: False
+
+# ---------- 训练超参数 ----------
+lr: 2e-5
+epochs: 50
+batchsize: 32
+acc_it: 32
+clip_grad: 100
+patience: 200
+wait: 5
+declay: 0.5
+yuzhi: 10
+pref: 20
+numworks: 4
+torch_seed: '42'
+np_seed: 'None'
+few_shotnum: 1
+
+# ---------- 损失权重 ----------
+lamba: 1
+alpha: 1
+beta: 0.0
+balence: 1000
+softloss: False
+simclr_ratio: 1.0
+soft_ratio: 0.0
+dist_type: euc
+
+# ---------- 模型结构 ----------
+enc_in: 2
+dec_in: 2
+c_out: 2
+d_model: 128
+n_heads: 8
+e_layers: 2
+d_layers: 1
+d_ff: 32
+d_ff2: 1024
+moving_avg: 25
+factor: 1
+dropout: 0.1
+embed: timeF
+activation: gelu
+output_attention: False
+patch_len: 16
+stride: 8
+seq_len: 128
+pred_len: 128
+prompt_domain: True
+right_prob: 0.0
+K: 7
+is_LORA: True
+load_lora_only: True
+decode_mask: True
+mix: True
+attn: prob
+ReprogrammingLayer: 4
+nmb_prototypes: 30
+T: 0.07
+epsilon: 0.05
+
+# ---------- LLM 配置 ----------
+llm_model: GPT2
+llm_path: ./pretrain_model/gpt2/
+llm_dim: 768
+llm_layers: 6
+
+# ---------- 数据增强与预处理 ----------
+RGB_is: True
+adsbis: False
+resample: False
+chazhi: False
+newdata: False
+cnum: 2
+samplenum: 1
+trans_choose: pwvd
+decoder_is: True
+norm_style: "no"
+swav_is: False
+
+# ---------- 数据集配置 ----------
+# 微调数据集: RMLA(11类), RMLB(10类), RMLC(11类)
+dataset: RMLA
+numclass: 11
+
+# 数据路径模板（自动填充 dataset 名称）
+train_data_path: ./data/fintune_data/{dataset}_train_data.npy
+test_data_path: ./data/fintune_data/{dataset}_test_data.npy
+
+dataset_config: ./config/datasets.yaml
+
+# ---------- 模型加载 ----------
+model_path: ./checkpoint_fintune/RadioLLM_RAG/RMLA/best_network.pth
+
+# ---------- 保存路径 ----------
+checkpoint_dir: ./checkpoint_fintune/RadioLLM_RAG/{dataset}/
+runs_dir: ./runs/classification/RadioLLM_RAG/GPT2/{dataset}/
+result_dir: ./result/classification/RadioLLM_RAG/GPT2/{dataset}/

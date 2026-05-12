@@ -1,0 +1,33 @@
+# ICAMCNET方法在ADSB数据集上的配置文件
+# 使用方式: python main.py --cfg config/replay/icamcnet/icamcnet_adsb.yaml
+
+# ========== 模型选择 ==========
+model: ICAMCNET
+
+# ========== 训练超参数 ==========
+batchsize: 32
+lr: 0.0005
+epochs: 200
+classesnum: 198
+netdepth: 64
+cutmixsize: 4
+patience: 200
+wait: 5
+declay: 0.5
+yuzhi: 10
+numworks: 4
+pref: 20
+
+# ========== 数据相关参数 ==========
+trans_choose: pwvd
+dataset: ADSB
+withoutis: 'no'
+adsbis: true
+resample: true
+chazhi: false
+cnum: 2
+samplenum: 10
+
+# ========== 路径参数 ==========
+data_dir: ./data
+checkpoint_dir: ./checkpoint_ICAMCNET

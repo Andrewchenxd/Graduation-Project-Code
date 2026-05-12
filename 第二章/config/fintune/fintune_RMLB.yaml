@@ -1,0 +1,46 @@
+# ============================================================
+# 微调配置文件 - RML2016.10a RMLB 数据集
+# ============================================================
+task: 'classification'
+dataset: 'RMLB'
+trans_choose: 'pwvd'
+
+# 数据路径
+train_data_path: './data/fintune_data/{}_train_data.npy'
+test_data_path: './data/fintune_data/{}_test_data.npy'
+
+# 训练参数
+batchsize: 256
+epochs: 50
+lr: 0.0005
+alpha: 0.8
+declay: 0.5
+
+# 模型参数
+classesnum: 11
+netdepth: 64
+cutmixsize: 4
+
+# 早停策略
+patience: 200
+wait: 5
+yuzhi: 5
+
+# 数据加载
+numworks: 2
+pref: 20
+
+# 数据集参数
+adsbis: false
+newdata: false
+resample: false
+chazhi: false
+cnum: 2
+samplenum: 6
+aug: true
+
+# 模型检查点路径
+model_path: './checkpoint_fintune/RMLB/pwvd_best_network.pth'
+
+# 保存路径
+save_path: './checkpoint_fintune/{}/'

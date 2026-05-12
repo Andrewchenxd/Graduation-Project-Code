@@ -1,0 +1,43 @@
+# ============================================================
+# 预训练配置文件 - RML2016.10a RMLB 数据集
+# ============================================================
+task: 'pretraining'
+dataset: 'RMLB'
+trans_choose: 'pwvd'
+
+# 数据路径
+data_path: './data/pretrain_data/{}_gaodbdata.npy'
+
+# 训练参数
+batchsize: 128
+epochs: 1000
+lr: 0.001
+lamba: 0.99
+alpha: 0.2
+declay: 0.5
+
+# 模型参数
+classesnum: 11
+netdepth: 64
+cutmixsize: 4
+
+# 早停策略
+patience: 20
+wait: 5
+yuzhi: 10
+
+# 数据加载
+numworks: 4
+pref: 20
+
+# 数据集参数
+adsbis: false
+newdata: false
+resample: false
+chazhi: false
+cnum: 2
+samplenum: 6
+RGB_is: false
+
+# 模型检查点路径
+model_path: './checkpoint_pretrain/RMLB/pwvd_best_network_loss_0.0447667405406634.pth'
