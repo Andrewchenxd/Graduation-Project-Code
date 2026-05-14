@@ -181,7 +181,7 @@ class EarlyStopping_acc:
         """保存模型"""
         if self.verbose:
             print(f'Validation acc increased ({self.val_acc_max:.6f} --> {val_acc:.6f}).  Saving model ...')
-        path = os.path.join(self.save_path, '{}_best_network_acc_{}.pth'.format(self.choose, self.best_score))
+        path = os.path.join(self.save_path, '{}_best_network_acc_best.pth'.format(self.choose))
         torch.save(model.state_dict(), path)
         self.val_acc_max = val_acc
 

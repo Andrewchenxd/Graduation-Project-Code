@@ -245,36 +245,125 @@ python main.py --model CNN2 --dataset ADSB --classesnum 198 --batchsize 32 --ads
 
 ## 评估
 
-### 评估 RML2016.10a
+### TSFFN
 
 ```bash
-# 使用配置文件（推荐）
+# RML2016.10a
 python evaluate.py --cfg config/replay/tsffn/tsffn_rml2016a.yaml
-
-# 或使用命令行参数
 python evaluate.py --checkpoint ./checkpoint_TSFFN/RMLA/PWVD/pwvd_best_network_acc_best.pth --dataset RMLA --classesnum 11 --batchsize 64
-```
 
-### 评估 RML2016.10b
-
-```bash
+# RML2016.10b
 python evaluate.py --cfg config/replay/tsffn/tsffn_rmlb.yaml
 python evaluate.py --checkpoint ./checkpoint_TSFFN/RMLB/PWVD/pwvd_best_network_acc_best.pth --dataset RMLB --classesnum 10 --batchsize 64
-```
 
-### 评估 RML2016.10c
-
-```bash
+# RML2016.10c
 python evaluate.py --cfg config/replay/tsffn/tsffn_rmlc.yaml
 python evaluate.py --checkpoint ./checkpoint_TSFFN/RMLC/PWVD/pwvd_best_network_acc_best.pth --dataset RMLC --classesnum 11 --batchsize 64
-```
 
-### 评估 ADSB
-
-```bash
+# ADSB
 python evaluate.py --cfg config/replay/tsffn/tsffn_adsb.yaml
 python evaluate.py --checkpoint ./checkpoint_TSFFN/ADSB/PWVD/pwvd_best_network_acc_best.pth --dataset ADSB --classesnum 198 --batchsize 32 --adsbis True --resample True --samplenum 10
 ```
+
+### MCLDNN
+
+```bash
+python evaluate.py --checkpoint ./checkpoint_MCLDNN/RMLA/PWVD/pwvd_best_network_acc_best.pth --dataset RMLA --classesnum 11 --batchsize 64
+python evaluate.py --checkpoint ./checkpoint_MCLDNN/RMLB/PWVD/pwvd_best_network_acc_best.pth --dataset RMLB --classesnum 10 --batchsize 64
+python evaluate.py --checkpoint ./checkpoint_MCLDNN/RMLC/PWVD/pwvd_best_network_acc_best.pth --dataset RMLC --classesnum 11 --batchsize 64
+python evaluate.py --checkpoint ./checkpoint_MCLDNN/ADSB/PWVD/pwvd_best_network_acc_best.pth --dataset ADSB --classesnum 198 --batchsize 32 --adsbis True --resample True --samplenum 10
+```
+
+### CNN2
+
+```bash
+python evaluate.py --checkpoint ./checkpoint_CNN2/RMLA/PWVD/pwvd_best_network_acc_best.pth --dataset RMLA --classesnum 11 --batchsize 64
+python evaluate.py --checkpoint ./checkpoint_CNN2/RMLB/PWVD/pwvd_best_network_acc_best.pth --dataset RMLB --classesnum 10 --batchsize 64
+python evaluate.py --checkpoint ./checkpoint_CNN2/RMLC/PWVD/pwvd_best_network_acc_best.pth --dataset RMLC --classesnum 11 --batchsize 64
+python evaluate.py --checkpoint ./checkpoint_CNN2/ADSB/PWVD/pwvd_best_network_acc_best.pth --dataset ADSB --classesnum 198 --batchsize 32 --adsbis True --resample True --samplenum 10
+```
+
+### DAE
+
+```bash
+python evaluate.py --checkpoint ./checkpoint_DAE/RMLA/PWVD/pwvd_best_network_acc_best.pth --dataset RMLA --classesnum 11 --batchsize 64
+python evaluate.py --checkpoint ./checkpoint_DAE/RMLB/PWVD/pwvd_best_network_acc_best.pth --dataset RMLB --classesnum 10 --batchsize 64
+python evaluate.py --checkpoint ./checkpoint_DAE/RMLC/PWVD/pwvd_best_network_acc_best.pth --dataset RMLC --classesnum 11 --batchsize 64
+python evaluate.py --checkpoint ./checkpoint_DAE/ADSB/PWVD/pwvd_best_network_acc_best.pth --dataset ADSB --classesnum 198 --batchsize 32 --adsbis True --resample True --samplenum 10
+```
+
+### ResNet2d
+
+```bash
+python evaluate.py --checkpoint ./checkpoint_ResNet2d/RMLA/PWVD/pwvd_best_network_acc_best.pth --dataset RMLA --classesnum 11 --batchsize 64
+python evaluate.py --checkpoint ./checkpoint_ResNet2d/RMLB/PWVD/pwvd_best_network_acc_best.pth --dataset RMLB --classesnum 10 --batchsize 64
+python evaluate.py --checkpoint ./checkpoint_ResNet2d/RMLC/PWVD/pwvd_best_network_acc_best.pth --dataset RMLC --classesnum 11 --batchsize 64
+python evaluate.py --checkpoint ./checkpoint_ResNet2d/ADSB/PWVD/pwvd_best_network_acc_best.pth --dataset ADSB --classesnum 198 --batchsize 32 --adsbis True --resample True --samplenum 10
+```
+
+### ResNet1d
+
+```bash
+python evaluate.py --checkpoint ./checkpoint_ResNet1d/RMLA/PWVD/pwvd_best_network_acc_best.pth --dataset RMLA --classesnum 11 --batchsize 64
+python evaluate.py --checkpoint ./checkpoint_ResNet1d/RMLB/PWVD/pwvd_best_network_acc_best.pth --dataset RMLB --classesnum 10 --batchsize 64
+python evaluate.py --checkpoint ./checkpoint_ResNet1d/RMLC/PWVD/pwvd_best_network_acc_best.pth --dataset RMLC --classesnum 11 --batchsize 64
+python evaluate.py --checkpoint ./checkpoint_ResNet1d/ADSB/PWVD/pwvd_best_network_acc_best.pth --dataset ADSB --classesnum 198 --batchsize 32 --adsbis True --resample True --samplenum 10
+```
+
+### PETCGDNN
+
+```bash
+python evaluate.py --checkpoint ./checkpoint_PETCGDNN/RMLA/PWVD/pwvd_best_network_acc_best.pth --dataset RMLA --classesnum 11 --batchsize 64
+python evaluate.py --checkpoint ./checkpoint_PETCGDNN/RMLB/PWVD/pwvd_best_network_acc_best.pth --dataset RMLB --classesnum 10 --batchsize 64
+python evaluate.py --checkpoint ./checkpoint_PETCGDNN/RMLC/PWVD/pwvd_best_network_acc_best.pth --dataset RMLC --classesnum 11 --batchsize 64
+python evaluate.py --checkpoint ./checkpoint_PETCGDNN/ADSB/PWVD/pwvd_best_network_acc_best.pth --dataset ADSB --classesnum 198 --batchsize 32 --adsbis True --resample True --samplenum 10
+```
+
+### ICAMCNET
+
+```bash
+python evaluate.py --checkpoint ./checkpoint_ICAMCNET/RMLA/PWVD/pwvd_best_network_acc_best.pth --dataset RMLA --classesnum 11 --batchsize 64
+python evaluate.py --checkpoint ./checkpoint_ICAMCNET/RMLB/PWVD/pwvd_best_network_acc_best.pth --dataset RMLB --classesnum 10 --batchsize 64
+python evaluate.py --checkpoint ./checkpoint_ICAMCNET/RMLC/PWVD/pwvd_best_network_acc_best.pth --dataset RMLC --classesnum 11 --batchsize 64
+python evaluate.py --checkpoint ./checkpoint_ICAMCNET/ADSB/PWVD/pwvd_best_network_acc_best.pth --dataset ADSB --classesnum 198 --batchsize 32 --adsbis True --resample True --samplenum 10
+```
+
+### HCGDNN
+
+```bash
+python evaluate.py --checkpoint ./checkpoint_HCGDNN/RMLA/PWVD/pwvd_best_network_acc_best.pth --dataset RMLA --classesnum 11 --batchsize 64
+python evaluate.py --checkpoint ./checkpoint_HCGDNN/RMLB/PWVD/pwvd_best_network_acc_best.pth --dataset RMLB --classesnum 10 --batchsize 64
+python evaluate.py --checkpoint ./checkpoint_HCGDNN/RMLC/PWVD/pwvd_best_network_acc_best.pth --dataset RMLC --classesnum 11 --batchsize 64
+python evaluate.py --checkpoint ./checkpoint_HCGDNN/ADSB/PWVD/pwvd_best_network_acc_best.pth --dataset ADSB --classesnum 198 --batchsize 32 --adsbis True --resample True --samplenum 10
+```
+
+### FLAN
+
+```bash
+python evaluate.py --checkpoint ./checkpoint_FLAN/RMLA/PWVD/pwvd_best_network_acc_best.pth --dataset RMLA --classesnum 11 --batchsize 64
+python evaluate.py --checkpoint ./checkpoint_FLAN/RMLB/PWVD/pwvd_best_network_acc_best.pth --dataset RMLB --classesnum 10 --batchsize 64
+python evaluate.py --checkpoint ./checkpoint_FLAN/RMLC/PWVD/pwvd_best_network_acc_best.pth --dataset RMLC --classesnum 11 --batchsize 64
+python evaluate.py --checkpoint ./checkpoint_FLAN/ADSB/PWVD/pwvd_best_network_acc_best.pth --dataset ADSB --classesnum 198 --batchsize 32 --adsbis True --resample True --samplenum 10
+```
+
+### MMNet
+
+```bash
+python evaluate.py --checkpoint ./checkpoint_MMNet/RMLA/PWVD/pwvd_best_network_acc_best.pth --dataset RMLA --classesnum 11 --batchsize 64
+python evaluate.py --checkpoint ./checkpoint_MMNet/RMLB/PWVD/pwvd_best_network_acc_best.pth --dataset RMLB --classesnum 10 --batchsize 64
+python evaluate.py --checkpoint ./checkpoint_MMNet/RMLC/PWVD/pwvd_best_network_acc_best.pth --dataset RMLC --classesnum 11 --batchsize 64
+python evaluate.py --checkpoint ./checkpoint_MMNet/ADSB/PWVD/pwvd_best_network_acc_best.pth --dataset ADSB --classesnum 198 --batchsize 32 --adsbis True --resample True --samplenum 10
+```
+
+### AWN
+
+```bash
+python evaluate.py --checkpoint ./checkpoint_AWN/RMLA/PWVD/pwvd_best_network_acc_best.pth --dataset RMLA --classesnum 11 --batchsize 64
+python evaluate.py --checkpoint ./checkpoint_AWN/RMLB/PWVD/pwvd_best_network_acc_best.pth --dataset RMLB --classesnum 10 --batchsize 64
+python evaluate.py --checkpoint ./checkpoint_AWN/RMLC/PWVD/pwvd_best_network_acc_best.pth --dataset RMLC --classesnum 11 --batchsize 64
+python evaluate.py --checkpoint ./checkpoint_AWN/ADSB/PWVD/pwvd_best_network_acc_best.pth --dataset ADSB --classesnum 198 --batchsize 32 --adsbis True --resample True --samplenum 10
+```
+
 
 ## 配置文件说明
 

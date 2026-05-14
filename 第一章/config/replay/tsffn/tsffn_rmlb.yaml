@@ -32,3 +32,4 @@ samplenum: 10           # 重采样点数
 # ========== 路径参数 ==========
 data_dir: ./data
 checkpoint_dir: ./checkpoint_TSFFN
+checkpoint: ./checkpoint_TSFFN/RMLB/PWVD/pwvd_best_network_acc_best.pth
