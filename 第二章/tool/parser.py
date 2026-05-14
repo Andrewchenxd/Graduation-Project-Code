@@ -49,6 +49,12 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument('--evaluate', action='store_true',
                         help='评估模式，在测试集上评估模型')
 
+    # 对比方法模型选择
+    parser.add_argument('--model', dest='model_name', type=str, default=None,
+                        help='对比方法模型名称: mcldnn, hcgdnn, pet, AWN, ICAMCNET, '
+                             'moco1d, TcssAMR, Sgnc2freq, Sgnc2freq_moco, '
+                             'Sgnc2freq_swav, SWT, MAE_ViT_gacf')
+
     # 允许命令行覆盖的关键参数
     parser.add_argument('--task', type=str, default=None,
                         help='任务类型: pretraining / classification')

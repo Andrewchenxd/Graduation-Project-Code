@@ -711,3 +711,42 @@ class SwinUnet(nn.Module):
         x = rearrange(x, 'B H W C -> B C H W')
         x = self.head(x)
         return x
+
+
+class CrossAttention_VIT(nn.Module):
+    def __init__(self, dim: int, L: int, attn_drop: Optional[float] = 0.):
+        super().__init__()
+        self.Dlinear=nn.Sequential(nn.Linear(dim,dim//2),
+                                   nn.Tanh(),
+                                   nn.Dropout(attn_drop),
+                                   nn.Linear(dim//2,dim),
+                                   nn.Tanh(),
+                                   nn.Dropout(attn_drop),
+                                   nn.Linear(dim,dim),
+                                   nn.Sigmoid())
+        self.L=L
+        self.Llinear = nn.Sequential(nn.Linear(self.L,self.L//2),
+                                   nn.Tanh(),
+                                   nn.Dropout(attn_drop),
+                                   nn.Linear(self.L//2,self.L),
+                                   nn.Tanh(),
+                                   nn.Dropout(attn_drop),
+                                   nn.Linear(self.L,self.L),
+                                   nn.Sigmoid())
+
+    def forward(self, input):
+        # x=input[-1]
+        x=input
+        # B, L,C = x.shape
+
+        xD = x
+        xL = rearrange(x, 'B L C -> B C L')
+        attnD=self.Dlinear(xD)
+        attnL = self.Llinear(xL)
+        # xD=xD*attnD
+        xD = torch.mul(xD , attnD)
+        # xL=xL*attnL
+        xL = torch.mul(xL, attnL)
+        xL = rearrange(xL, 'B C L -> B L C')
+        x=xD+xL
+        return x

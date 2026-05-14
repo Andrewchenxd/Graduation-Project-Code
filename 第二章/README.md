@@ -91,11 +91,22 @@ loss = lamba * (loss1 + loss2) + (1 - lamba) * loss3
 │       └── RMLC_test_data.npy
 ├── model/                           # 模型定义
 │   ├── ACSF_TMAE.py                 # ACSF-TMAE 主模型
-│   └── pwvdswin_ViT.py             # Swin Transformer 基础组件 + AC-SF 模块
+│   ├── pwvdswin_ViT.py             # Swin Transformer 基础组件 + AC-SF 模块
+│   ├── mcldnn.py                    # MCLDNN 1D CNN 对比方法
+│   ├── HCGDNN.py                    # HCGDNN 多输出对比方法
+│   ├── PETCGDNN.py                  # PETCGDNN 对比方法
+│   ├── AWN.py                       # AWN 自适应小波网络对比方法
+│   ├── ICAMCNET.py                  # ICAMCNET 对比方法
+│   ├── mocov3_sgn.py                # MoCoV3_sgn + ViT_sgn_fc 对比方法
+│   ├── TcssAMR.py                   # TcssAMR + ViT_TcssAMR_fc 对比方法
+│   ├── Spe2sgn.py                   # Sgnc2freq + Sgnc2freq_fc 对比方法
+│   ├── TCSSINformer.py              # Moco/SWAV Informer Encoder 对比方法
+│   └── vit_simple.py                # MAE_ViT_gasf_fc 对比方法
 ├── scheme/                          # 训练方案
 │   ├── base_scheme.py               # 基础方案类
 │   ├── pretrain_scheme.py           # 预训练方案（含 MIM 损失）
-│   ├── fintune_scheme.py            # 微调方案
+│   ├── fintune_scheme.py            # ACSF-TMAE 微调方案
+│   ├── fintune_comparison_scheme.py # 对比方法统一微调方案
 │   └── evaluate_scheme.py           # 评估方案
 ├── tool/                            # 工具函数
 │   ├── parser.py                    # 命令行参数解析
@@ -142,7 +153,7 @@ python main.py --cfg config/pretrain/pretrain_RMLB.yaml
 python main.py --cfg config/pretrain/pretrain_RMLC.yaml
 ```
 
-### 2. 微调
+### 2. 微调（ACSF-TMAE）
 
 ```bash
 python main.py --cfg config/fintune/fintune_RMLA.yaml
@@ -150,13 +161,82 @@ python main.py --cfg config/fintune/fintune_RMLB.yaml
 python main.py --cfg config/fintune/fintune_RMLC.yaml
 ```
 
-### 3. 评估
+### 3. 对比方法微调
+
+支持 11 种对比方法的统一微调，通过 `--model` 参数指定模型名称。
+
+**1D 信号模型**（输入为 IQ 信号序列）：
 
 ```bash
-python main.py --cfg config/fintune/fintune_RMLA.yaml --evaluate
+# MCLDNN
+python main.py --model mcldnn --cfg config/fintune/fintune_RMLA.yaml
+
+# HCGDNN（多输出）
+python main.py --model hcgdnn --cfg config/fintune/fintune_RMLA.yaml
+
+# PETCGDNN
+python main.py --model pet --cfg config/fintune/fintune_RMLA.yaml
+
+# AWN（自适应小波网络）
+python main.py --model AWN --cfg config/fintune/fintune_RMLA.yaml
+
+# ICAMCNET
+python main.py --model ICAMCNET --cfg config/fintune/fintune_RMLA.yaml
 ```
 
-### 4. 命令行覆盖参数
+**自监督/Transformer 模型**（需指定预训练权重路径）：
+
+```bash
+
+# TcssAMR（Transformer 自注意力机制）
+python main.py --model TcssAMR --cfg config/fintune/fintune_RMLA.yaml \
+    --model_path checkpoint_pretrain/RMLA/tcssamr_pretrain.pth
+
+```
+
+**2D 图像模型**（输入为 GASF 格拉米角场图像）：
+
+```bash
+# MAE_ViT_gacf（ViT + GASF 图像）
+python main.py --model MAE_ViT_gacf --cfg config/fintune/fintune_RMLA.yaml \
+    --model_path checkpoint_pretrain/RMLA/mae_vit_gacf_pretrain.pth
+```
+
+### 4. 评估
+
+评估模块根据配置文件中的数据集名称，输出 ACSF-TMAE 及所有对比方法的评估结果。
+
+```bash
+# 评估 RMLA 数据集（ACSF-TMAE + 所有对比方法）
+python main.py --cfg config/fintune/fintune_RMLA.yaml --evaluate
+
+# 评估 RMLB 数据集
+python main.py --cfg config/fintune/fintune_RMLB.yaml --evaluate
+
+# 评估 RMLC 数据集
+python main.py --cfg config/fintune/fintune_RMLC.yaml --evaluate
+```
+
+支持的对比方法列表：
+
+| 方法 | 说明 |
+|------|------|
+| `TCSSAMR` | Transformer 自注意力机制 |
+| `SemiAMC` | 半监督 AMC |
+| `MoCoV3_2d` | 动量对比学习 V3 |
+| `GAF-MAE` | GAF 图像 + MAE |
+| `HCGDNN` | 混合 CNN + DNN |
+| `PETCGDNN` | 位置编码 Transformer + HCGDNN |
+| `AWN` | 自适应小波网络 |
+| `MCLDNN` | 多尺度 CNN + LSTM + DNN |
+| `ICAMC-Net` | 交互式通道注意力 AMC-Net |
+| `CVCNN` | 复合值 CNN |
+| `SFS-SEI` | 频谱特征选择 SEI |
+| `ACSF-TMAE_SL` | ACSF-TMAE 消融变体（单路径） |
+
+评估结果自动以加密格式保存至 `runs/` 目录，包含 OA 和各 SNR 准确率。
+
+### 5. 命令行覆盖参数
 
 ```bash
 python main.py --cfg config/pretrain/pretrain_RMLA.yaml --batchsize 64 --lr 0.0005 --epochs 500
@@ -178,6 +258,8 @@ python main.py --cfg config/pretrain/pretrain_RMLA.yaml --batchsize 64 --lr 0.00
 | `wait` | 学习率调整等待轮数 | `5` |
 | `samplenum` | 信号下采样倍数 | `6` (pwvd) / `4` (stft) |
 | `lamba` | 重建损失与 MIM 损失平衡系数 | `0.99` |
+| `model` | 对比方法模型名称（命令行参数） | `mcldnn` / `hcgdnn` / `AWN` / `MAE_ViT_gacf` 等 |
+| `model_path` | 预训练权重路径（SSL 模型需指定） | `checkpoint_pretrain/RMLA/best_model.pth` |
 
 ---
 
@@ -199,7 +281,9 @@ python main.py --cfg config/pretrain/pretrain_RMLA.yaml --batchsize 64 --lr 0.00
 ## 训练流程
 
 1. **预训练阶段**：在无标签数据上使用 MAE + MIM 进行生成式自监督学习
-2. **微调阶段**：加载预训练权重，在有标签数据上进行分类微调
+2. **微调阶段**：
+   - **ACSF-TMAE 微调**：加载预训练权重，在有标签数据上进行分类微调
+   - **对比方法微调**：支持 11 种对比方法的统一微调，通过 `--model` 参数选择
 3. **评估阶段**：在测试集上评估 Overall Accuracy (OA) 和各 SNR 准确率
 
 ---

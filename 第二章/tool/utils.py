@@ -141,7 +141,7 @@ class EarlyStopping_base_model:
         """验证损失降低时保存模型"""
         if self.verbose:
             print(f'验证损失降低 ({self.val_loss_min:.6f} --> {val_loss:.6f}). 保存模型 ...')
-        path = os.path.join(self.save_path, '{}_best_network_loss_{}.pth'.format(self.choose, -self.best_score))
+        path = os.path.join(self.save_path, '{}_best_network_loss_best.pth'.format(self.choose))
         torch.save(model.state_dict(), path)
         self.val_loss_min = val_loss
 

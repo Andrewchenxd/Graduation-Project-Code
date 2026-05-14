@@ -176,6 +176,14 @@ def wave(data,resampe_is=False,samplenum=2,mask_is=False,resize_is=False,fs=128,
     return normImg
 
 
+def sgn_norm(sgn, normtype='maxmin'):
+    if normtype == 'maxmin':
+        sgn = (sgn - sgn.min()) / (sgn.max() - sgn.min() + 1e-6)
+    elif normtype == 'maxmin-1':
+        sgn = (2 * sgn - sgn.min() - sgn.max()) / (sgn.max() - sgn.min() + 1e-6)
+    return sgn
+
+
 def wave1(data,resize_is=False,fs=1024,scales=512,norm='log'):
     sgn=data
     if sgn.shape[0]==2:
