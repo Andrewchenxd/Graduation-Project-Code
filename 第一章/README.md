@@ -245,6 +245,23 @@ python main.py --model CNN2 --dataset ADSB --classesnum 198 --batchsize 32 --ads
 
 ## 评估
 
+### 一键批量评估
+
+提供一键脚本，自动顺序评估所有方法在全部数据集上的表现。
+
+#### Windows
+
+```batch
+batch_eval_all.bat
+```
+
+#### Linux / macOS
+
+```bash
+chmod +x batch_eval_all.sh
+./batch_eval_all.sh
+```
+
 ### TSFFN
 
 ```bash
@@ -363,6 +380,7 @@ python evaluate.py --checkpoint ./checkpoint_AWN/RMLB/PWVD/pwvd_best_network_acc
 python evaluate.py --checkpoint ./checkpoint_AWN/RMLC/PWVD/pwvd_best_network_acc_best.pth --dataset RMLC --classesnum 11 --batchsize 64
 python evaluate.py --checkpoint ./checkpoint_AWN/ADSB/PWVD/pwvd_best_network_acc_best.pth --dataset ADSB --classesnum 198 --batchsize 32 --adsbis True --resample True --samplenum 10
 ```
+
 
 
 ## 配置文件说明

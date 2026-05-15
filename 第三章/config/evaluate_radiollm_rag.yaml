@@ -80,7 +80,7 @@ test_data_path: ./data/fintune_data/{dataset}_test_data.npy
 dataset_config: ./config/datasets.yaml
 
 # ---------- 模型加载 ----------
-model_path: ./checkpoint_fintune/RadioLLM_RAG/RMLA/best_network.pth
+model_path: ./checkpoint_fintune/RadioLLM_RAG/{dataset}/best_network.pth
 
 # ---------- 保存路径 ----------
 result_dir: ./result/classification/RadioLLM_RAG/GPT2/{dataset}/

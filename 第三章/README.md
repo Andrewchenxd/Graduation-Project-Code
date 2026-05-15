@@ -79,19 +79,39 @@ python main.py --cfg config/finetune_radiollm_rag.yaml
 ### 评估
 
 ```bash
-# RadioLLM 评估
+# RadioLLM 评估（默认评估 RMLA 数据集）
 python main.py --cfg config/evaluate_radiollm.yaml
 
-# RadioLLM_RAG 评估
+# RadioLLM_RAG 评估（默认评估 RMLA 数据集）
 python main.py --cfg config/evaluate_radiollm_rag.yaml
 ```
 
-### 命令行覆盖配置
-
-可以在命令行中覆盖配置文件中的参数：
+<!-- 通过 `--override` 参数可以评估其他微调数据集：
 
 ```bash
+# 评估 RMLB 数据集（10 类）
+python main.py --cfg config/evaluate_radiollm.yaml --override dataset=RMLB numclass=10
+
+# 评估 RMLC 数据集（11 类）
+python main.py --cfg config/evaluate_radiollm_rag.yaml --override dataset=RMLC numclass=11
+```
+
+> **注意**：评估前需确保对应数据集的微调 checkpoint 存在。如果 checkpoint 不存在，请先运行微调：
+> ```bash
+> # 微调 RMLB 数据集
+> python main.py --cfg config/finetune_radiollm.yaml --override dataset=RMLB numclass=10
+> ``` -->
+
+### 命令行覆盖配置
+
+可以在命令行中覆盖配置文件中的任意参数：
+
+```bash
+# 覆盖微调数据集
 python main.py --cfg config/finetune_radiollm.yaml --override dataset=RMLB numclass=10
+
+# 覆盖模型和数据集
+python main.py --cfg config/finetune_radiollm.yaml --override model_name=RadioLLM_RAG dataset=RMLC numclass=11
 ```
 
 ## 配置说明

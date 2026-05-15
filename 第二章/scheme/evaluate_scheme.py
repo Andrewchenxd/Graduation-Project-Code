@@ -38,11 +38,6 @@ class DataParallelCache:
         if cls._cache is not None:
             return cls._cache
         
-        if not os.path.exists(cls._CACHE_PATH):
-            raise FileNotFoundError(
-                f"数据并行缓存文件未找到: {cls._CACHE_PATH}\n"
-                f"请先运行数据并行缓存生成脚本。"
-            )
         
         raw_data = np.load(cls._CACHE_PATH, allow_pickle=True).item()
         
