@@ -36,7 +36,7 @@ def main():
     args, _ = parser.parse_known_args()
 
     # 加载配置
-    from tool.parser import parse_args
+    from tool.parser import parse_args, load_config, resolve_path_templates
     config = parse_args(args.cfg)
 
     # 命令行覆盖配置参数
@@ -55,6 +55,12 @@ def main():
                     except ValueError:
                         pass
                 setattr(config, key, value)
+        # 重新从 YAML 加载原始配置并重新解析路径模板
+        raw_config = load_config(args.cfg)
+        for k, v in config.__dict__.items():
+            if k not in ('test_data_path', 'train_data_path', 'model_path', 'result_dir'):
+                setattr(raw_config, k, v)
+        config = resolve_path_templates(raw_config)
 
     # 打印配置信息
     print(f"{'=' * 60}")

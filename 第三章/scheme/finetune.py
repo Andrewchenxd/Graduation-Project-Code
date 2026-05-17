@@ -291,22 +291,26 @@ def validate_for_result(
             for i, (input1, target, snr) in enumerate(val_loader):
                 val_image, val_label = input1, target
 
-                if config.swav_is:
-                    if config.softloss:
-                        output = model(
-                            val_image.to(device), val_image.to(device), val_image.to(device),
-                            enable_mask=False, dataset_name='RML2016a+b_total_snr'
-                        )
+                with autocast(device_type='cuda', enabled=config.autocast):
+                    if config.swav_is:
+                        if config.softloss:
+                            output = model(
+                                val_image.to(device), val_image.to(device), val_image.to(device),
+                                enable_mask=False, dataset_name='RML2016a+b_total_snr'
+                            )
+                        else:
+                            output = model(
+                                val_image.to(device), val_image.to(device),
+                                enable_mask=False, dataset_name='RML2016a+b_total_snr'
+                            )
                     else:
                         output = model(
-                            val_image.to(device), val_image.to(device),
-                            enable_mask=False, dataset_name='RML2016a+b_total_snr'
+                            val_image.to(device), enable_mask=False,
+                            dataset_name='RML2016a+b_total_snr'
                         )
-                else:
-                    output = model(
-                        val_image.to(device), enable_mask=False,
-                        dataset_name='RML2016a+b_total_snr'
-                    )
+
+                    target_var = val_label.to(device)
+                    loss_val = criterion(output, target_var)
 
                 pre_y = torch.max(output, dim=1)[1]
                 pre_y = pre_y.detach().cpu().numpy()
@@ -317,13 +321,12 @@ def validate_for_result(
                 pre_label_list.append(pre_y)
                 true_label_list.append(val_label_np)
 
-                loss = 0
                 if adsbis:
                     acc_snrs(output, val_label, snr - 10, acc_snr_pre, acc_snr_count)
                 else:
                     acc_snrs(output, val_label, snr, acc_snr_pre, acc_snr_count)
                 acc.update(acc_classes(output.data, target, config.batchsize))
-                losses_class.update(loss)
+                losses_class.update(loss_val.item())
 
                 pbar.set_postfix(**{'val_loss_class': losses_class.avg, 'acc': acc.avg})
                 pbar.update(1)

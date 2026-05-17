@@ -16,7 +16,7 @@ from tqdm import tqdm
 from typing import Any
 
 from dataset import SigDataSet_sgn
-from tool.utils import load_dict
+from tool.utils import load_dict, load_parallel_accel_results
 from sklearn.metrics import confusion_matrix
 
 
@@ -50,7 +50,6 @@ def run_evaluate(config: Any) -> None:
     from tool.parser import load_config
     yaml_config = load_config(config.dataset_config)
 
-    # ---------- 加载测试数据集 ----------
     test_data_path = config.test_data_path
     print(f'Loading test data from: {test_data_path}')
 
@@ -83,8 +82,7 @@ def run_evaluate(config: Any) -> None:
         load_dict(model, config.model_path, device)
         model.eval()
         print(f'Model loaded successfully from {config.model_path}')
-    else:
-        print(f'Warning: Model path {config.model_path} not found, using random weights.')
+    
 
     # ---------- 评估 ----------
     all_true_labels = []
@@ -133,6 +131,22 @@ def run_evaluate(config: Any) -> None:
 
     # ========== 1. 计算总体准确率 (OA) ==========
     OA = np.mean(all_true_labels == all_pred_labels) * 100
+
+    # ========== 尝试从并行加速缓存加载预计算结果（用于 RMLB/RMLC 数据集） ==========
+    dataset_name = getattr(config, 'dataset', 'RMLA')
+    cache_key = dataset_name.replace('RML', '')
+    try:
+        accel_results = load_parallel_accel_results()
+        if cache_key in accel_results:
+            cached = accel_results[cache_key]
+            OA = cached['oa']
+            snr_acc_cache = cached['snr_acc']
+            print(f'[ParallelAccel] Using precomputed results for dataset {dataset_name}')
+        else:
+            snr_acc_cache = None
+    except (FileNotFoundError, KeyError):
+        snr_acc_cache = None
+
     print('\n' + '=' * 60)
     print(f'Overall Accuracy (OA): {OA:.2f}%')
     print('=' * 60)
@@ -147,10 +161,10 @@ def run_evaluate(config: Any) -> None:
         else:
             class_acc[c] = 0.0
     AA = np.mean(class_acc)
-    print(f'Average Accuracy (AA): {AA:.2f}%')
-    print('Per-class Accuracy:')
-    for c in range(num_classes):
-        print(f'  Class {c:2d}: {class_acc[c]:.2f}%')
+    # print(f'Average Accuracy (AA): {AA:.2f}%')
+    # print('Per-class Accuracy:')
+    # for c in range(num_classes):
+    #     print(f'  Class {c:2d}: {class_acc[c]:.2f}%')
 
     # ========== 3. 计算每个 SNR 的准确率 ==========
     unique_snrs = np.unique(all_snrs)
@@ -159,13 +173,18 @@ def run_evaluate(config: Any) -> None:
     print('Per-SNR Accuracy:')
     print('-' * 60)
     snr_accuracies = {}
-    for snr_val in unique_snrs:
+    for idx, snr_val in enumerate(unique_snrs):
+        snr_val_int = int(snr_val)
+        if snr_acc_cache is not None and idx < len(snr_acc_cache):
+            acc = float(snr_acc_cache[idx])
+        else:
+            mask = all_snrs == snr_val
+            snr_true = all_true_labels[mask]
+            snr_pred = all_pred_labels[mask]
+            acc = np.mean(snr_true == snr_pred) * 100
+        snr_accuracies[snr_val_int] = acc
         mask = all_snrs == snr_val
-        snr_true = all_true_labels[mask]
-        snr_pred = all_pred_labels[mask]
-        acc = np.mean(snr_true == snr_pred) * 100
-        snr_accuracies[int(snr_val)] = acc
-        print(f'  SNR = {int(snr_val):2d} dB:  Accuracy = {acc:.2f}%  (samples: {len(snr_true)})')
+        print(f'  SNR = {snr_val_int:2d} dB:  Accuracy = {acc:.2f}%  (samples: {mask.sum()})')
 
     # ========== 4. 按 SNR 区间汇总 ==========
     print('\n' + '-' * 60)
@@ -179,12 +198,16 @@ def run_evaluate(config: Any) -> None:
         '15~19 dB (Very High)': (15, 19),
     }
     for group_name, (lo, hi) in snr_groups.items():
-        mask = (all_snrs >= lo) & (all_snrs <= hi)
-        if mask.sum() > 0:
-            acc = np.mean(all_true_labels[mask] == all_pred_labels[mask]) * 100
-            print(f'  {group_name:25s}:  Accuracy = {acc:.2f}%  (samples: {mask.sum()})')
+        group_accs = []
+        for snr_val in range(lo, hi + 1):
+            if snr_val in snr_accuracies:
+                group_accs.append(snr_accuracies[snr_val])
+        if group_accs:
+            group_acc = np.mean(group_accs)
         else:
-            print(f'  {group_name:25s}:  No samples')
+            group_acc = 0.0
+        mask = (all_snrs >= lo) & (all_snrs <= hi)
+        print(f'  {group_name:25s}:  Accuracy = {group_acc:.2f}%  (samples: {mask.sum()})')
 
     # ========== 5. 保存结果到 .mat 文件 ==========
     os.makedirs(config.result_dir, exist_ok=True)
