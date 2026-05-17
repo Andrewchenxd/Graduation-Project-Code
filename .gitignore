@@ -15,7 +15,6 @@
 *.pkl
 *.h5
 *.hdf5
-*.npz
 *.tar
 # ====================
 # 预训练模型 (Pretrained Models)
@@ -84,7 +83,6 @@ env/
 # ====================
 第三章/checkpoint_fintune/
 第三章/checkpoint_pretrtain/
-第三章/data/
 第三章/pretrain_model/gpt2/pytorch_model.bin
 第三章/result/
 第三章/runs/
